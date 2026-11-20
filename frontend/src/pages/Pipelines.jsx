@@ -14,7 +14,7 @@ export default function Pipelines({ pipelines, setPipelines }) {
     branch: "main",
   });
 
-  // Fetch pipelines from backend
+  // Fetch all pipelines
   useEffect(() => {
     const fetchPipelines = async () => {
       try {
@@ -32,16 +32,18 @@ export default function Pipelines({ pipelines, setPipelines }) {
     fetchPipelines();
   }, [setPipelines]);
 
+  // Reset form
   const resetForm = () => {
     setForm({
       name: "",
       repositoryUrl: "",
       branch: "main",
     });
+
     setEditingId(null);
   };
 
-  // Create pipeline through backend
+  // Create or update pipeline
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -52,22 +54,30 @@ export default function Pipelines({ pipelines, setPipelines }) {
       setError("");
 
       if (editingId !== null) {
-        // Update API will be connected after backend PUT route is implemented.
-        return;
+        // Update existing pipeline
+        const response = await api.put(`/pipelines/${editingId}`, form);
+
+        setPipelines((previous) =>
+          previous.map((pipeline) =>
+            pipeline.id === editingId ? response.data.data : pipeline,
+          ),
+        );
+      } else {
+        // Create new pipeline
+        const response = await api.post("/pipelines", form);
+
+        setPipelines((previous) => [...previous, response.data.data]);
       }
-
-      const response = await api.post("/pipelines", form);
-
-      setPipelines((previous) => [...previous, response.data.data]);
 
       resetForm();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create pipeline.");
+      setError(err.response?.data?.message || "Failed to save pipeline.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Edit pipeline
   const handleEdit = (pipeline) => {
     setEditingId(pipeline.id);
 
@@ -78,9 +88,27 @@ export default function Pipelines({ pipelines, setPipelines }) {
     });
   };
 
-  const handleDelete = (id) => {
-    // Delete API will be connected after backend DELETE route is implemented.
-    alert("Delete functionality will be connected next.");
+  // Delete pipeline
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this pipeline?")) {
+      return;
+    }
+
+    try {
+      setError("");
+
+      await api.delete(`/pipelines/${id}`);
+
+      setPipelines((previous) =>
+        previous.filter((pipeline) => pipeline.id !== id),
+      );
+
+      if (editingId === id) {
+        resetForm();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete pipeline.");
+    }
   };
 
   return (
@@ -88,6 +116,7 @@ export default function Pipelines({ pipelines, setPipelines }) {
       <div className="mx-auto max-w-6xl space-y-8">
         <header>
           <h1 className="text-3xl font-bold">Pipeline Management</h1>
+
           <p className="mt-2 text-slate-400">
             Create and manage your CI/CD pipelines.
           </p>
