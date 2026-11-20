@@ -7,6 +7,7 @@ import Containers from "./pages/Containers";
 import Deployments from "./pages/Deployments";
 import BuildHistory from "./pages/BuildHistory";
 import Settings from "./pages/Settings";
+import Auth from "./pages/Auth";
 
 import PipelineStatusCards from "./components/PipelineStatusCards";
 import RecentPipelineActivity from "./components/RecentPipelineActivity";
@@ -42,6 +43,9 @@ const initialPipelines = [
 ];
 
 function App() {
+  // Demo authentication state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
   // Active sidebar page
   const [activePage, setActivePage] = useState("dashboard");
 
@@ -56,7 +60,7 @@ function App() {
     initialDeployments
   );
 
-  // Calculate Dashboard statistics
+  // Calculate dashboard statistics
   const activeContainers = containers.filter(
     (container) => container.status === "running"
   ).length;
@@ -76,7 +80,19 @@ function App() {
     },
   ];
 
-  // Render active page
+  // Handle demo login
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+    setActivePage("dashboard");
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setActivePage("dashboard");
+  };
+
+  // Render active dashboard page
   const renderContent = () => {
     switch (activePage) {
       case "pipelines":
@@ -155,6 +171,13 @@ function App() {
     }
   };
 
+  // Show combined Login / Signup form
+  // when user is not logged in
+  if (!isLoggedIn) {
+    return <Auth onLogin={handleLogin} />;
+  }
+
+  // Main dashboard
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
       {/* Sidebar Navigation */}
@@ -167,13 +190,26 @@ function App() {
       <div className="min-w-0 flex-1">
         {/* Top Header */}
         <header className="border-b border-slate-800 px-6 py-5 md:px-8">
-          <h1 className="text-xl font-semibold">
-            DevOpsFlow Dashboard
-          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold">
+                DevOpsFlow Dashboard
+              </h1>
 
-          <p className="mt-1 text-sm text-slate-400">
-            CI/CD Automation & Kubernetes Management
-          </p>
+              <p className="mt-1 text-sm text-slate-400">
+                CI/CD Automation & Kubernetes Management
+              </p>
+            </div>
+
+            {/* Logout Button */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/20"
+            >
+              Logout
+            </button>
+          </div>
         </header>
 
         {/* Active Page */}
