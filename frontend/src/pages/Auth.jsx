@@ -1,19 +1,28 @@
-
 import { useState } from "react";
+
+const API_BASE = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
+)
+  .trim()
+  .replace(/\/+$/, "");
+
+// Works whether VITE_API_URL ends in /api or not
+const API_URL = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`;
+
+const emptyForm = {
+  name: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
 
 export default function Auth({ onLogin }) {
   const [isSignup, setIsSignup] = useState(false);
-
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
-
+  const [form, setForm] = useState(emptyForm);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -28,20 +37,20 @@ export default function Auth({ onLogin }) {
   };
 
   const switchForm = () => {
+    if (loading) return;
+
     setIsSignup((prev) => !prev);
-    setForm({
-      name: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-    });
+    setForm(emptyForm);
     setError("");
     setSuccess("");
     setShowPassword(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setError("");
     setSuccess("");
 
@@ -54,37 +63,89 @@ export default function Auth({ onLogin }) {
       return;
     }
 
-    if (isSignup) {
-      if (form.password.length < 8) {
-        setError("Password must be at least 8 characters.");
-        return;
-      }
-
-      if (form.password !== form.confirmPassword) {
-        setError("Passwords do not match.");
-        return;
-      }
-
-      // Demo only: No account is created.
-      setSuccess("Form validated! Switch to Login to continue.");
+    if (isSignup && form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
-    // Demo login: No real credential verification.
-    onLogin();
+    if (isSignup && form.password !== form.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const endpoint = isSignup ? "/auth/register" : "/auth/login";
+
+      const payload = isSignup
+        ? {
+            name: form.name.trim(),
+            email: form.email.trim(),
+            password: form.password,
+          }
+        : {
+            email: form.email.trim(),
+            password: form.password,
+          };
+
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error("Authentication failed:", {
+          status: response.status,
+          message: data.message || data.error,
+        });
+
+        throw new Error(
+          data.message ||
+            data.error ||
+            `Authentication failed (HTTP ${response.status}).`
+        );
+      }
+
+      if (isSignup) {
+        setSuccess("Account created! Please sign in.");
+        setIsSignup(false);
+
+        setForm({
+          name: "",
+          email: form.email.trim(),
+          password: "",
+          confirmPassword: "",
+        });
+      } else {
+        // The backend must establish a valid session.
+        onLogin(data.user);
+      }
+    } catch (err) {
+      setError(
+        err instanceof TypeError
+          ? "Cannot connect to the backend server."
+          : err.message
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
       <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
-
         {/* Logo */}
         <div className="mb-8 text-center">
           <div className="mb-3 text-4xl">⚙️</div>
 
-          <h1 className="text-3xl font-bold text-cyan-400">
-            DevOpsFlow
-          </h1>
+          <h1 className="text-3xl font-bold text-cyan-400">DevOpsFlow</h1>
 
           <p className="mt-2 text-sm text-slate-400">
             CI/CD Automation & Kubernetes Management
@@ -136,7 +197,6 @@ export default function Auth({ onLogin }) {
 
         {/* Authentication Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
-
           {/* Full Name - Signup Only */}
           {isSignup && (
             <div>
@@ -200,9 +260,7 @@ export default function Auth({ onLogin }) {
                 value={form.password}
                 onChange={handleChange}
                 placeholder="Enter your password"
-                autoComplete={
-                  isSignup ? "new-password" : "current-password"
-                }
+                autoComplete={isSignup ? "new-password" : "current-password"}
                 required
                 minLength={isSignup ? 8 : undefined}
                 className="w-full rounded-lg border border-slate-700 bg-slate-800 p-3 pr-16 outline-none focus:border-cyan-500"
@@ -256,31 +314,31 @@ export default function Auth({ onLogin }) {
             </p>
           )}
 
-          {/* Submit */}
+          {/* Submit Button */}
           <button
             type="submit"
-            className="w-full rounded-lg bg-cyan-500 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400"
+            disabled={loading}
+            className="w-full rounded-lg bg-cyan-500 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSignup ? "Create Account" : "Sign In"}
+            {loading
+              ? "Please wait..."
+              : isSignup
+                ? "Create Account"
+                : "Sign In"}
           </button>
         </form>
 
         {/* Switch Form */}
         <p className="mt-6 text-center text-sm text-slate-400">
-          {isSignup
-            ? "Already have an account?"
-            : "Don't have an account?"}{" "}
+          {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
           <button
             type="button"
+            disabled={loading}
             onClick={switchForm}
-            className="font-semibold text-cyan-400 hover:underline"
+            className="font-semibold text-cyan-400 hover:underline disabled:opacity-50"
           >
             {isSignup ? "Sign In" : "Sign Up"}
           </button>
-        </p>
-
-        <p className="mt-5 text-center text-xs text-yellow-400">
-          Demo mode: Authentication is not connected to a backend.
         </p>
       </div>
     </div>
